@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Punching App</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #edf2f7;
+      min-height: 100vh;
+      padding: 30px 16px;
+      color: #2d3748;
+    }
+
+    /* ── Header ── */
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #1a202c;
+    }
+    .header p {
+      color: #718096;
+      margin-top: 6px;
+      font-size: 0.95rem;
+    }
+
+    /* ── Layout ── */
+    .wrapper {
+      max-width: 900px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+    }
+    .full { grid-column: 1 / -1; }
+
+    @media (max-width: 620px) {
+      .wrapper { grid-template-columns: 1fr; }
+      .full { grid-column: 1; }
+    }
+
+    /* ── Card ── */
+    .card {
+      background: #ffffff;
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 2px 14px rgba(0, 0, 0, 0.07);
+    }
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 18px;
+    }
+
+    /* ── Form ── */
+    .field-label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #718096;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 5px;
+    }
+    input[type="text"],
+    input[type="date"] {
+      width: 100%;
+      padding: 10px 13px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 0.93rem;
+      margin-bottom: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+      background: #fff;
+      color: #2d3748;
+    }
+    input[type="text"]:focus,
+    input[type="date"]:focus {
+      border-color: #3182ce;
+    }
+
+    /* ── Buttons ── */
+    .btn-row {
+      display: flex;
+      gap: 10px;
+    }
+    .btn {
+      flex: 1;
+      padding: 11px 14px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn:hover  { opacity: 0.85; }
+    .btn:active { transform: scale(0.97); }
+    .btn-green { background: #38a169; color: #fff; }
+    .btn-red   { background: #e53e3e; color: #fff; }
+    .btn-blue  { background: #3182ce; color: #fff; }
+    .btn-sm    { flex: 0; padding: 10px 20px; }
+
+    /* ── Alert ── */
+    .alert {
+      padding: 11px 15px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      margin-top: 14px;
+      display: none;
+    }
+    .alert.success { background: #c6f6d5; color: #22543d; display: block; }
+    .alert.error   { background: #fed7d7; color: #742a2a; display: block; }
+
+    /* ── Status Pill ── */
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 13px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .pill.active { background: #c6f6d5; color: #22543d; }
+    .pill.idle   { background: #e2e8f0; color: #4a5568; }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .dot-green { background: #38a169; }
+    .dot-gray  { background: #a0aec0; }
+
+    /* ── Stats ── */
+    .stats-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .stat {
+      flex: 1;
+      background: #f7fafc;
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+    }
+    .stat .num {
+      font-size: 1.7rem;
+      font-weight: 700;
+    }
+    .stat .lbl {
+      font-size: 0.73rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #718096;
+      margin-top: 3px;
+    }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      background: #f7fafc;
+      padding: 4px;
+      border-radius: 10px;
+      margin-bottom: 18px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 8px;
+      text-align: center;
+      border-radius: 7px;
+      cursor: pointer;
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: #718096;
+      border: none;
+      background: transparent;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      background: #fff;
+      color: #2d3748;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+    }
+    th {
+      background: #f7fafc;
+      padding: 10px 12px;
+      text-align: left;
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #718096;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    td {
+      padding: 11px 12px;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f7fafc; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .badge-green { background: #c6f6d5; color: #22543d; }
+    .badge-blue  { background: #bee3f8; color: #2a4365; }
+
+    .emp-name { font-weight: 600; }
+    .emp-id   { font-size: 0.77rem; color: #a0aec0; margin-top: 2px; }
+
+    .no-data {
+      text-align: center;
+      padding: 32px;
+      color: #a0aec0;
+      font-size: 0.92rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <h1>&#128336; Punching App</h1>
+    <p>Employee Attendance Management System</p>
+  </div>
+
+  <div class="wrapper">
+
+    <!-- Punch Card -->
+    <div class="card">
+      <h2>&#128205; Mark Attendance</h2>
+
+      <div id="statusPill" class="pill idle">
+        <span class="dot dot-gray"></span>
+        <span id="pillText">Not Punched In</span>
+      </div>
+
+      <label class="field-label">Employee ID</label>
+      <input type="text" id="empId" placeholder="e.g. EMP001" oninput="onEmpIdChange()" />
+
+      <label class="field-label">Employee Name</label>
+      <input type="text" id="empName" placeholder="Full name" />
+
+      <div class="btn-row">
+        <button class="btn btn-green" onclick="punch('in')">&#10003; Punch In</button>
+        <button class="btn btn-red"   onclick="punch('out')">&#9679; Punch Out</button>
+      </div>
+
+      <div id="punchAlert" class="alert"></div>
+    </div>
+
+    <!-- Summary Card -->
+    <div class="card">
+      <h2>&#128202; Today's Summary</h2>
+
+      <div class="stats-row">
+        <div class="stat">
+          <div class="num" id="statTotal" style="color:#2d3748;">-</div>
+          <div class="lbl">Total</div>
+        </div>
+        <div class="stat">
+          <div class="num" id="statActive" style="color:#38a169;">-</div>
+          <div class="lbl">Active</div>
+        </div>
+        <div class="stat">
+          <div class="num" id="statDone" style="color:#3182ce;">-</div>
+          <div class="lbl">Done</div>
+        </div>
+      </div>
+
+      <button class="btn btn-blue" onclick="loadSummary()" style="width:100%;">
+        &#8635; Refresh Summary
+      </button>
+
+      <div id="summaryAlert" class="alert"></div>
+    </div>
+
+    <!-- Records Card -->
+    <div class="card full">
+      <h2>&#128203; Attendance Records</h2>
+
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('all')">All Records</button>
+        <button class="tab-btn"        onclick="switchTab('emp')">By Employee</button>
+        <button class="tab-btn"        onclick="switchTab('date')">By Date</button>
+      </div>
+
+      <!-- All -->
+      <div id="tab-all" class="tab-panel active">
+        <button class="btn btn-blue btn-sm" onclick="loadAllRecords()" style="margin-bottom:16px;">
+          Load Records
+        </button>
+      </div>
+
+      <!-- By Employee -->
+      <div id="tab-emp" class="tab-panel">
+        <label class="field-label">Employee ID</label>
+        <div class="btn-row" style="margin-bottom:16px;">
+          <input type="text" id="filterEmpId" placeholder="e.g. EMP001" style="margin-bottom:0;" />
+          <button class="btn btn-blue btn-sm" onclick="loadByEmployee()">Search</button>
+        </div>
+      </div>
+
+      <!-- By Date -->
+      <div id="tab-date" class="tab-panel">
+        <label class="field-label">Select Date</label>
+        <div class="btn-row" style="margin-bottom:16px;">
+          <input type="date" id="filterDate" style="margin-bottom:0;" />
+          <button class="btn btn-blue btn-sm" onclick="loadByDate()">Search</button>
+        </div>
+      </div>
+
+      <div id="recordsBox" class="table-wrap">
+        <div class="no-data">Click "Load Records" to view attendance data.</div>
+      </div>
+    </div>
+
+  </div><!-- end .wrapper -->
+
+  <script>
+    // ── Utilities ────────────────────────────────────────────────────────────
+    function formatTime(val) {
+      if (!val) return '-';
+      var d = new Date(val);
+      var h = d.getHours();
+      var m = d.getMinutes();
+      var ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+      return h + ':' + (m < 10 ? '0' + m : m) + ' ' + ampm;
+    }
+
+    function showAlert(id, msg, type) {
+      var el = document.getElementById(id);
+      el.textContent = msg;
+      el.className = 'alert ' + type;
+      setTimeout(function () { el.style.display = 'none'; }, 5000);
+    }
+
+    // ── Status Pill ──────────────────────────────────────────────────────────
+    var statusTimer = null;
+
+    function onEmpIdChange() {
+      clearTimeout(statusTimer);
+      var empId = document.getElementById('empId').value.trim();
+      if (!empId) { setPill(false, null); return; }
+      statusTimer = setTimeout(function () { fetchStatus(empId); }, 500);
+    }
+
+    function fetchStatus(empId) {
+      fetch('/api/status/' + encodeURIComponent(empId))
+        .then(function (r) { return r.json(); })
+        .then(function (data) { setPill(data.isPunchedIn, data.record); })
+        .catch(function () {});
+    }
+
+    function setPill(active, record) {
+      var pill = document.getElementById('statusPill');
+      var text = document.getElementById('pillText');
+      var dot  = pill.querySelector('.dot');
+      if (active) {
+        pill.className = 'pill active';
+        dot.className  = 'dot dot-green';
+        text.textContent = record ? 'Punched In since ' + formatTime(record.punchIn) : 'Punched In';
+      } else {
+        pill.className = 'pill idle';
+        dot.className  = 'dot dot-gray';
+        text.textContent = 'Not Punched In';
+      }
+    }
+
+    // ── Punch In / Out ───────────────────────────────────────────────────────
+    function punch(type) {
+      var empId   = document.getElementById('empId').value.trim();
+      var empName = document.getElementById('empName').value.trim();
+
+      if (!empId) { showAlert('punchAlert', 'Please enter Employee ID.', 'error'); return; }
+      if (type === 'in' && !empName) { showAlert('punchAlert', 'Please enter Employee Name.', 'error'); return; }
+
+      var url  = type === 'in' ? '/api/punch-in' : '/api/punch-out';
+      var body = type === 'in'
+        ? { employeeId: empId, employeeName: empName }
+        : { employeeId: empId };
+
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        if (!res.ok) { showAlert('punchAlert', res.data.error, 'error'); return; }
+        showAlert('punchAlert', res.data.message, 'success');
+        fetchStatus(empId);
+        loadSummary();
+        loadAllRecords();
+      })
+      .catch(function (e) { showAlert('punchAlert', 'Server error: ' + e.message, 'error'); });
+    }
+
+    // ── Summary ──────────────────────────────────────────────────────────────
+    function loadSummary() {
+      fetch('/api/summary')
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var active = data.summary.filter(function (r) { return r.status === 'Active'; }).length;
+          var done   = data.summary.filter(function (r) { return r.status === 'Completed'; }).length;
+          document.getElementById('statTotal').textContent  = data.total;
+          document.getElementById('statActive').textContent = active;
+          document.getElementById('statDone').textContent   = done;
+        })
+        .catch(function () { showAlert('summaryAlert', 'Failed to load summary.', 'error'); });
+    }
+
+    // ── Records ──────────────────────────────────────────────────────────────
+    function loadAllRecords() {
+      fetchRecords('');
+    }
+
+    function loadByEmployee() {
+      var id = document.getElementById('filterEmpId').value.trim();
+      if (!id) { alert('Please enter an Employee ID.'); return; }
+      fetchRecords('?employeeId=' + encodeURIComponent(id));
+    }
+
+    function loadByDate() {
+      var d = document.getElementById('filterDate').value;
+      if (!d) { alert('Please select a date.'); return; }
+      fetchRecords('?date=' + d);
+    }
+
+    function fetchRecords(query) {
+      fetch('/api/records' + query)
+        .then(function (r) { return r.json(); })
+        .then(function (records) { renderTable(records); })
+        .catch(function () {
+          document.getElementById('recordsBox').innerHTML = '<div class="no-data">Failed to load records.</div>';
+        });
+    }
+
+    function renderTable(records) {
+      var box = document.getElementById('recordsBox');
+      if (!records || records.length === 0) {
+        box.innerHTML = '<div class="no-data">No records found.</div>';
+        return;
+      }
+      var html = '<table><thead><tr>'
+        + '<th>Employee</th>'
+        + '<th>Date</th>'
+        + '<th>Punch In</th>'
+        + '<th>Punch Out</th>'
+        + '<th>Duration</th>'
+        + '<th>Status</th>'
+        + '</tr></thead><tbody>';
+
+      for (var i = 0; i < records.length; i++) {
+        var r     = records[i];
+        var badge = r.punchOut
+          ? '<span class="badge badge-blue">Completed</span>'
+          : '<span class="badge badge-green">Active</span>';
+        html += '<tr>'
+          + '<td><div class="emp-name">' + r.employeeName + '</div><div class="emp-id">' + r.employeeId + '</div></td>'
+          + '<td>' + r.date + '</td>'
+          + '<td>' + formatTime(r.punchIn) + '</td>'
+          + '<td>' + formatTime(r.punchOut) + '</td>'
+          + '<td>' + (r.duration || '-') + '</td>'
+          + '<td>' + badge + '</td>'
+          + '</tr>';
+      }
+      html += '</tbody></table>';
+      box.innerHTML = html;
+    }
+
+    // ── Tabs ─────────────────────────────────────────────────────────────────
+    function switchTab(name) {
+      var tabNames = ['all', 'emp', 'date'];
+      var btns     = document.querySelectorAll('.tab-btn');
+      for (var i = 0; i < tabNames.length; i++) {
+        btns[i].classList.toggle('active', tabNames[i] === name);
+        document.getElementById('tab-' + tabNames[i]).classList.toggle('active', tabNames[i] === name);
+      }
+      document.getElementById('recordsBox').innerHTML =
+        '<div class="no-data">Use the controls above to load records.</div>';
+    }
+
+    // ── Init ─────────────────────────────────────────────────────────────────
+    document.getElementById('filterDate').value = new Date().toISOString().split('T')[0];
+    loadSummary();
+    loadAllRecords();
+  </script>
+</body>
+</html>
