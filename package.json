@@ -10,7 +10,9 @@
     "@aws-sdk/client-s3": "^3.0.0",
     "@aws-sdk/s3-request-presigner": "^3.0.0",
     "cors": "^2.8.5",
+    "couchbase": "^4.3.0",
     "dotenv": "^16.0.0",
-    "express": "^4.18.0"
+    "express": "^4.18.0",
+    "uuid": "^9.0.0"
   }
 }
