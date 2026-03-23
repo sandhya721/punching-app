@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // INSTALL DEPENDENCIES:
-//   npm install express cors dotenv couchbase @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
+//   npm install express cors dotenv couchbase @aws-sdk/client-s3 @aws-sdk/s3-request-presigner uuid
 //
 // .env variables needed:
 //   CB_CONNECTION_STRING   — e.g. couchbases://cb.xxxxxx.cloud.couchbase.com
@@ -15,10 +15,12 @@
 //   AWS_REGION             — eu-north-1
 //   AWS_ACCESS_KEY_ID      — your AWS key
 //   AWS_SECRET_ACCESS_KEY  — your AWS secret
-//   S3_BUCKET_NAME         — punchin-screenshots-bucket1
+//   S3_BUCKET_NAME         — punchin-screenshots-bucket
 //   PORT                   — 3000
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ✅ FIX: Load environment variables FIRST before anything else
+require('dotenv').config();
 
 const express    = require('express');
 const cors       = require('cors');
@@ -52,21 +54,22 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 // ── Couchbase connection ───────────────────────────────────────────────────────
-let collection; // will be set after connect
+let collection;
+let clusterInstance; // ✅ reuse a single cluster connection
 
 async function connectCouchbase() {
-  const cluster = await couchbase.connect(process.env.CB_CONNECTION_STRING, {
-    username:              process.env.CB_USERNAME,
-    password:              process.env.CB_PASSWORD,
-    configProfile:         'wanDevelopment', // required for Couchbase Capella cloud
+  clusterInstance = await couchbase.connect(process.env.CB_CONNECTION_STRING, {
+    username:      process.env.CB_USERNAME,
+    password:      process.env.CB_PASSWORD,
+    configProfile: 'wanDevelopment', // required for Couchbase Capella cloud
   });
 
-  const bucket     = cluster.bucket(process.env.CB_BUCKET_NAME);
-  const scope      = bucket.scope(process.env.CB_SCOPE_NAME     || '_default');
-  collection       = scope.collection(process.env.CB_COLLECTION_NAME || 'attendance');
+  const bucket = clusterInstance.bucket(process.env.CB_BUCKET_NAME);
+  const scope  = bucket.scope(process.env.CB_SCOPE_NAME || '_default');
+  collection   = scope.collection(process.env.CB_COLLECTION_NAME || 'attendance');
 
   console.log('✅ Connected to Couchbase Capella');
-  return cluster;
+  return clusterInstance;
 }
 
 // ── Helper ────────────────────────────────────────────────────────────────────
@@ -78,6 +81,11 @@ function calcDuration(punchIn, punchOut) {
   const h    = Math.floor(mins / 60);
   const m    = mins % 60;
   return `${h}h ${m < 10 ? '0' + m : m}m`;
+}
+
+// ── N1QL query helper using the shared cluster ────────────────────────────────
+async function runQuery(query, parameters) {
+  return clusterInstance.query(query, { parameters });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -122,7 +130,7 @@ app.post('/api/punch-in', async (req, res) => {
   try {
     // Check: already punched in today?
     const checkQuery = `
-      SELECT META().id, *
+      SELECT META().id
       FROM \`${process.env.CB_BUCKET_NAME}\`.\`${process.env.CB_SCOPE_NAME || '_default'}\`.\`${process.env.CB_COLLECTION_NAME || 'attendance'}\`
       WHERE employeeId = $employeeId
         AND date       = $date
@@ -130,13 +138,7 @@ app.post('/api/punch-in', async (req, res) => {
       LIMIT 1
     `;
 
-    const checkResult = await collection.scope.query
-      ? collection.scope.query(checkQuery, { parameters: { employeeId, date: today() } })
-      : (await (await couchbase.connect(process.env.CB_CONNECTION_STRING, {
-            username: process.env.CB_USERNAME,
-            password: process.env.CB_PASSWORD,
-            configProfile: 'wanDevelopment',
-          })).query(checkQuery, { parameters: { employeeId, date: today() } }));
+    const checkResult = await runQuery(checkQuery, { employeeId, date: today() });
 
     if (checkResult.rows && checkResult.rows.length > 0) {
       return res.status(400).json({ error: 'Already punched in today.' });
@@ -152,7 +154,7 @@ app.post('/api/punch-in', async (req, res) => {
       punchIn:      new Date().toISOString(),
       punchOut:     null,
       duration:     null,
-      photoUrl:     photoUrl || null,
+      photoUrl:     photoUrl || null,   // ✅ S3 URL stored here
     };
 
     await collection.insert(docId, record);
@@ -175,7 +177,6 @@ app.post('/api/punch-out', async (req, res) => {
   if (!employeeId) return res.status(400).json({ error: 'employeeId is required.' });
 
   try {
-    // Find active punch-in (no punchOut) for today
     const query = `
       SELECT META().id AS docId, *
       FROM \`${process.env.CB_BUCKET_NAME}\`.\`${process.env.CB_SCOPE_NAME || '_default'}\`.\`${process.env.CB_COLLECTION_NAME || 'attendance'}\`
@@ -185,15 +186,7 @@ app.post('/api/punch-out', async (req, res) => {
       LIMIT 1
     `;
 
-    const cluster = await couchbase.connect(process.env.CB_CONNECTION_STRING, {
-      username: process.env.CB_USERNAME,
-      password: process.env.CB_PASSWORD,
-      configProfile: 'wanDevelopment',
-    });
-
-    const result = await cluster.query(query, {
-      parameters: { employeeId, date: today() }
-    });
+    const result = await runQuery(query, { employeeId, date: today() });
 
     if (!result.rows || result.rows.length === 0) {
       return res.status(400).json({ error: 'No active punch-in found for today.' });
@@ -206,10 +199,9 @@ app.post('/api/punch-out', async (req, res) => {
     const punchOut = new Date().toISOString();
     const duration = calcDuration(record.punchIn, punchOut);
 
-    // Update the document
     await collection.mutateIn(docId, [
-      couchbase.MutateInSpec.upsert('punchOut',  punchOut),
-      couchbase.MutateInSpec.upsert('duration',  duration),
+      couchbase.MutateInSpec.upsert('punchOut', punchOut),
+      couchbase.MutateInSpec.upsert('duration', duration),
     ]);
 
     console.log(`[PUNCH OUT] ${record.employeeName} (${employeeId})  duration: ${duration}`);
@@ -227,12 +219,6 @@ app.post('/api/punch-out', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/status/:employeeId', async (req, res) => {
   try {
-    const cluster = await couchbase.connect(process.env.CB_CONNECTION_STRING, {
-      username: process.env.CB_USERNAME,
-      password: process.env.CB_PASSWORD,
-      configProfile: 'wanDevelopment',
-    });
-
     const query = `
       SELECT *
       FROM \`${process.env.CB_BUCKET_NAME}\`.\`${process.env.CB_SCOPE_NAME || '_default'}\`.\`${process.env.CB_COLLECTION_NAME || 'attendance'}\`
@@ -242,9 +228,7 @@ app.get('/api/status/:employeeId', async (req, res) => {
       LIMIT 1
     `;
 
-    const result = await cluster.query(query, {
-      parameters: { employeeId: req.params.employeeId, date: today() }
-    });
+    const result = await runQuery(query, { employeeId: req.params.employeeId, date: today() });
 
     const record = result.rows.length > 0
       ? result.rows[0][process.env.CB_COLLECTION_NAME || 'attendance']
@@ -264,12 +248,6 @@ app.get('/api/status/:employeeId', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/records', async (req, res) => {
   try {
-    const cluster = await couchbase.connect(process.env.CB_CONNECTION_STRING, {
-      username: process.env.CB_USERNAME,
-      password: process.env.CB_PASSWORD,
-      configProfile: 'wanDevelopment',
-    });
-
     let whereClause = 'type = "attendance"';
     const params    = {};
 
@@ -289,7 +267,7 @@ app.get('/api/records', async (req, res) => {
       ORDER BY punchIn DESC
     `;
 
-    const result  = await cluster.query(query, { parameters: params });
+    const result  = await runQuery(query, params);
     const records = result.rows.map(r => r[process.env.CB_COLLECTION_NAME || 'attendance']);
 
     res.json(records);
@@ -306,12 +284,6 @@ app.get('/api/records', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/summary', async (req, res) => {
   try {
-    const cluster = await couchbase.connect(process.env.CB_CONNECTION_STRING, {
-      username: process.env.CB_USERNAME,
-      password: process.env.CB_PASSWORD,
-      configProfile: 'wanDevelopment',
-    });
-
     const query = `
       SELECT employeeId, employeeName, punchOut
       FROM \`${process.env.CB_BUCKET_NAME}\`.\`${process.env.CB_SCOPE_NAME || '_default'}\`.\`${process.env.CB_COLLECTION_NAME || 'attendance'}\`
@@ -319,7 +291,7 @@ app.get('/api/summary', async (req, res) => {
         AND date = $date
     `;
 
-    const result  = await cluster.query(query, { parameters: { date: today() } });
+    const result  = await runQuery(query, { date: today() });
     const summary = result.rows.map(r => ({
       employeeId:   r.employeeId,
       employeeName: r.employeeName,
