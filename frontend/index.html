@@ -19,7 +19,6 @@
       color: #2d3748;
     }
 
-    /* ── Header ── */
     .header {
       text-align: center;
       margin-bottom: 30px;
@@ -35,7 +34,6 @@
       font-size: 0.95rem;
     }
 
-    /* ── Layout ── */
     .wrapper {
       max-width: 900px;
       margin: 0 auto;
@@ -50,7 +48,6 @@
       .full { grid-column: 1; }
     }
 
-    /* ── Card ── */
     .card {
       background: #ffffff;
       border-radius: 14px;
@@ -64,7 +61,6 @@
       margin-bottom: 18px;
     }
 
-    /* ── Form ── */
     .field-label {
       display: block;
       font-size: 0.78rem;
@@ -88,15 +84,9 @@
       color: #2d3748;
     }
     input[type="text"]:focus,
-    input[type="date"]:focus {
-      border-color: #3182ce;
-    }
+    input[type="date"]:focus { border-color: #3182ce; }
 
-    /* ── Buttons ── */
-    .btn-row {
-      display: flex;
-      gap: 10px;
-    }
+    .btn-row { display: flex; gap: 10px; }
     .btn {
       flex: 1;
       padding: 11px 14px;
@@ -116,7 +106,6 @@
     .btn-gray  { background: #a0aec0; color: #fff; }
     .btn-sm    { flex: 0; padding: 10px 20px; }
 
-    /* ── Alert ── */
     .alert {
       padding: 11px 15px;
       border-radius: 8px;
@@ -128,7 +117,6 @@
     .alert.error   { background: #fed7d7; color: #742a2a; display: block; }
     .alert.info    { background: #bee3f8; color: #2a4365; display: block; }
 
-    /* ── Status Pill ── */
     .pill {
       display: inline-flex;
       align-items: center;
@@ -141,20 +129,11 @@
     }
     .pill.active { background: #c6f6d5; color: #22543d; }
     .pill.idle   { background: #e2e8f0; color: #4a5568; }
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
     .dot-green { background: #38a169; }
     .dot-gray  { background: #a0aec0; }
 
-    /* ── Stats ── */
-    .stats-row {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 20px;
-    }
+    .stats-row { display: flex; gap: 12px; margin-bottom: 20px; }
     .stat {
       flex: 1;
       background: #f7fafc;
@@ -162,10 +141,7 @@
       padding: 14px;
       text-align: center;
     }
-    .stat .num {
-      font-size: 1.7rem;
-      font-weight: 700;
-    }
+    .stat .num { font-size: 1.7rem; font-weight: 700; }
     .stat .lbl {
       font-size: 0.73rem;
       text-transform: uppercase;
@@ -174,7 +150,6 @@
       margin-top: 3px;
     }
 
-    /* ── Tabs ── */
     .tabs {
       display: flex;
       gap: 4px;
@@ -199,18 +174,13 @@
     .tab-btn.active {
       background: #fff;
       color: #2d3748;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
     }
     .tab-panel { display: none; }
     .tab-panel.active { display: block; }
 
-    /* ── Table ── */
     .table-wrap { overflow-x: auto; }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.86rem;
-    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
     th {
       background: #f7fafc;
       padding: 10px 12px;
@@ -238,18 +208,11 @@
     }
     .badge-green { background: #c6f6d5; color: #22543d; }
     .badge-blue  { background: #bee3f8; color: #2a4365; }
-
     .emp-name { font-weight: 600; }
     .emp-id   { font-size: 0.77rem; color: #a0aec0; margin-top: 2px; }
+    .no-data  { text-align: center; padding: 32px; color: #a0aec0; font-size: 0.92rem; }
 
-    .no-data {
-      text-align: center;
-      padding: 32px;
-      color: #a0aec0;
-      font-size: 0.92rem;
-    }
-
-    /* ── ✅ NEW: Camera / Photo Section ── */
+    /* Camera Section */
     .camera-section {
       margin-bottom: 16px;
       border: 1.5px dashed #e2e8f0;
@@ -257,7 +220,6 @@
       overflow: hidden;
       background: #f7fafc;
     }
-
     .camera-toggle {
       width: 100%;
       padding: 10px;
@@ -270,7 +232,6 @@
       text-align: center;
     }
     .camera-toggle:hover { background: #ebf8ff; }
-
     .camera-body {
       display: none;
       padding: 12px;
@@ -279,7 +240,6 @@
       gap: 10px;
     }
     .camera-body.open { display: flex; }
-
     #cameraVideo {
       width: 100%;
       max-width: 320px;
@@ -288,7 +248,6 @@
       display: none;
     }
     #photoCanvas { display: none; }
-
     #photoPreview {
       width: 100%;
       max-width: 320px;
@@ -296,14 +255,12 @@
       border: 2px solid #38a169;
       display: none;
     }
-
     .camera-controls {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
       justify-content: center;
     }
-
     .photo-status {
       font-size: 0.82rem;
       color: #38a169;
@@ -312,11 +269,9 @@
     }
     .photo-status.visible { display: block; }
 
-    /* ── Spinner ── */
     .spinner {
       display: inline-block;
-      width: 14px;
-      height: 14px;
+      width: 14px; height: 14px;
       border: 2px solid rgba(255,255,255,0.4);
       border-top-color: #fff;
       border-radius: 50%;
@@ -326,10 +281,8 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Photo thumbnail in table */
     .photo-thumb {
-      width: 40px;
-      height: 40px;
+      width: 40px; height: 40px;
       object-fit: cover;
       border-radius: 6px;
       cursor: pointer;
@@ -340,7 +293,6 @@
 </head>
 <body>
 
-  <!-- Header -->
   <div class="header">
     <h1>&#128336; Punching App</h1>
     <p>Employee Attendance Management System</p>
@@ -363,7 +315,7 @@
       <label class="field-label">Employee Name</label>
       <input type="text" id="empName" placeholder="Full name" />
 
-      <!-- ✅ NEW: Camera / Screenshot Section -->
+      <!-- Camera Section -->
       <div class="camera-section">
         <button class="camera-toggle" onclick="toggleCamera()">
           📷 Take Photo for Punch-In (optional)
@@ -380,11 +332,10 @@
           <span id="photoStatus" class="photo-status">✅ Photo ready to upload</span>
         </div>
       </div>
-      <!-- END Camera Section -->
 
       <div class="btn-row">
         <button class="btn btn-green" id="btnPunchIn" onclick="punch('in')">&#10003; Punch In</button>
-        <button class="btn btn-red"   onclick="punch('out')">&#9679; Punch Out</button>
+        <button class="btn btn-red" onclick="punch('out')">&#9679; Punch Out</button>
       </div>
 
       <div id="punchAlert" class="alert"></div>
@@ -393,7 +344,6 @@
     <!-- Summary Card -->
     <div class="card">
       <h2>&#128202; Today's Summary</h2>
-
       <div class="stats-row">
         <div class="stat">
           <div class="num" id="statTotal" style="color:#2d3748;">-</div>
@@ -408,32 +358,21 @@
           <div class="lbl">Done</div>
         </div>
       </div>
-
-      <button class="btn btn-blue" onclick="loadSummary()" style="width:100%;">
-        &#8635; Refresh Summary
-      </button>
-
+      <button class="btn btn-blue" onclick="loadSummary()" style="width:100%;">&#8635; Refresh Summary</button>
       <div id="summaryAlert" class="alert"></div>
     </div>
 
     <!-- Records Card -->
     <div class="card full">
       <h2>&#128203; Attendance Records</h2>
-
       <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('all')">All Records</button>
-        <button class="tab-btn"        onclick="switchTab('emp')">By Employee</button>
-        <button class="tab-btn"        onclick="switchTab('date')">By Date</button>
+        <button class="tab-btn" onclick="switchTab('emp')">By Employee</button>
+        <button class="tab-btn" onclick="switchTab('date')">By Date</button>
       </div>
-
-      <!-- All -->
       <div id="tab-all" class="tab-panel active">
-        <button class="btn btn-blue btn-sm" onclick="loadAllRecords()" style="margin-bottom:16px;">
-          Load Records
-        </button>
+        <button class="btn btn-blue btn-sm" onclick="loadAllRecords()" style="margin-bottom:16px;">Load Records</button>
       </div>
-
-      <!-- By Employee -->
       <div id="tab-emp" class="tab-panel">
         <label class="field-label">Employee ID</label>
         <div class="btn-row" style="margin-bottom:16px;">
@@ -441,8 +380,6 @@
           <button class="btn btn-blue btn-sm" onclick="loadByEmployee()">Search</button>
         </div>
       </div>
-
-      <!-- By Date -->
       <div id="tab-date" class="tab-panel">
         <label class="field-label">Select Date</label>
         <div class="btn-row" style="margin-bottom:16px;">
@@ -450,16 +387,21 @@
           <button class="btn btn-blue btn-sm" onclick="loadByDate()">Search</button>
         </div>
       </div>
-
       <div id="recordsBox" class="table-wrap">
         <div class="no-data">Click "Load Records" to view attendance data.</div>
       </div>
     </div>
 
-  </div><!-- end .wrapper -->
+  </div>
 
   <script>
-    // ── Utilities ────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
+    // ✅ API BASE URL — all requests go through ALB to Private EC2
+    // Change this if your ALB DNS changes
+    // ─────────────────────────────────────────────────────────────────────────
+    var API_BASE = 'http://my-load-balancer-742843387.eu-north-1.elb.amazonaws.com';
+
+    // ── Utilities ─────────────────────────────────────────────────────────────
     function formatTime(val) {
       if (!val) return '-';
       var d = new Date(val);
@@ -477,7 +419,7 @@
       setTimeout(function () { el.style.display = 'none'; }, 6000);
     }
 
-    // ── Status Pill ──────────────────────────────────────────────────────────
+    // ── Status Pill ───────────────────────────────────────────────────────────
     var statusTimer = null;
 
     function onEmpIdChange() {
@@ -488,7 +430,7 @@
     }
 
     function fetchStatus(empId) {
-      fetch('/api/status/' + encodeURIComponent(empId))
+      fetch(API_BASE + '/api/status/' + encodeURIComponent(empId))
         .then(function (r) { return r.json(); })
         .then(function (data) { setPill(data.isPunchedIn, data.record); })
         .catch(function () {});
@@ -499,25 +441,24 @@
       var text = document.getElementById('pillText');
       var dot  = pill.querySelector('.dot');
       if (active) {
-        pill.className = 'pill active';
-        dot.className  = 'dot dot-green';
+        pill.className   = 'pill active';
+        dot.className    = 'dot dot-green';
         text.textContent = record ? 'Punched In since ' + formatTime(record.punchIn) : 'Punched In';
       } else {
-        pill.className = 'pill idle';
-        dot.className  = 'dot dot-gray';
+        pill.className   = 'pill idle';
+        dot.className    = 'dot dot-gray';
         text.textContent = 'Not Punched In';
       }
     }
 
-    // ── ✅ NEW: Camera Logic ──────────────────────────────────────────────────
-    var mediaStream     = null;
-    var capturedBlob    = null;
-    var cameraOpen      = false;
+    // ── Camera Logic ──────────────────────────────────────────────────────────
+    var mediaStream  = null;
+    var capturedBlob = null;
+    var cameraOpen   = false;
 
     function toggleCamera() {
       cameraOpen = !cameraOpen;
-      var body = document.getElementById('cameraBody');
-      body.classList.toggle('open', cameraOpen);
+      document.getElementById('cameraBody').classList.toggle('open', cameraOpen);
       if (!cameraOpen) stopCamera();
     }
 
@@ -532,15 +473,13 @@
           var video = document.getElementById('cameraVideo');
           video.srcObject = stream;
           video.style.display = 'block';
-          document.getElementById('btnStartCam').style.display = 'none';
-          document.getElementById('btnCapture').style.display  = 'inline-block';
+          document.getElementById('btnStartCam').style.display  = 'none';
+          document.getElementById('btnCapture').style.display   = 'inline-block';
           document.getElementById('photoPreview').style.display = 'none';
           document.getElementById('photoStatus').classList.remove('visible');
           capturedBlob = null;
         })
-        .catch(function (err) {
-          alert('Could not access camera: ' + err.message);
-        });
+        .catch(function (err) { alert('Could not access camera: ' + err.message); });
     }
 
     function capturePhoto() {
@@ -552,17 +491,14 @@
 
       canvas.toBlob(function (blob) {
         capturedBlob = blob;
-        // Show preview
-        var preview = document.getElementById('photoPreview');
-        preview.src = URL.createObjectURL(blob);
+        var preview  = document.getElementById('photoPreview');
+        preview.src  = URL.createObjectURL(blob);
         preview.style.display = 'block';
-        // Hide video, show retake
-        video.style.display = 'none';
+        video.style.display   = 'none';
         document.getElementById('btnCapture').style.display = 'none';
         document.getElementById('btnRetake').style.display  = 'inline-block';
         document.getElementById('photoStatus').classList.add('visible');
-        // Stop camera stream to free camera
-        stopCamera(true); // true = keep preview
+        stopCamera(true);
       }, 'image/jpeg', 0.85);
     }
 
@@ -580,11 +516,11 @@
         mediaStream = null;
       }
       if (!keepPreview) {
-        document.getElementById('cameraVideo').style.display   = 'none';
-        document.getElementById('photoPreview').style.display  = 'none';
-        document.getElementById('btnStartCam').style.display   = 'inline-block';
-        document.getElementById('btnCapture').style.display    = 'none';
-        document.getElementById('btnRetake').style.display     = 'none';
+        document.getElementById('cameraVideo').style.display  = 'none';
+        document.getElementById('photoPreview').style.display = 'none';
+        document.getElementById('btnStartCam').style.display  = 'inline-block';
+        document.getElementById('btnCapture').style.display   = 'none';
+        document.getElementById('btnRetake').style.display    = 'none';
         document.getElementById('photoStatus').classList.remove('visible');
         capturedBlob = null;
       } else {
@@ -592,69 +528,76 @@
       }
     }
 
-    // ✅ Upload photo to S3 using presigned URL, returns the S3 fileUrl
-    async function uploadPhotoToS3() {
-      if (!capturedBlob) return null;
+    // ─────────────────────────────────────────────────────────────────────────
+    // ✅ Upload photo — sends base64 image to EC2 /upload route via ALB
+    //    EC2 uploads to S3 and saves punch-in record to Couchbase in one step
+    // ─────────────────────────────────────────────────────────────────────────
+    async function uploadPhotoAndPunchIn(empId, empName) {
+      return new Promise(function (resolve, reject) {
+        var reader = new FileReader();
+        reader.onloadend = async function () {
+          try {
+            var base64Image = reader.result; // "data:image/jpeg;base64,..."
 
-      var empId    = document.getElementById('empId').value.trim();
-      var fileName = 'screenshots/' + empId + '_' + Date.now() + '.jpg';
+            var res = await fetch(API_BASE + '/upload', {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body:    JSON.stringify({
+                image:        base64Image,
+                employeeId:   empId,
+                employeeName: empName
+              })
+            });
 
-      // Step 1: Get presigned URL from our backend
-      var urlRes = await fetch('/api/s3-presigned-url', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ fileName: fileName, fileType: 'image/jpeg' })
+            var data = await res.json();
+            if (!res.ok) return reject(new Error(data.error || 'Upload failed'));
+            resolve(data); // { success, photoUrl, message }
+          } catch (e) {
+            reject(e);
+          }
+        };
+        reader.onerror = function () { reject(new Error('Failed to read image file')); };
+        reader.readAsDataURL(capturedBlob);
       });
-
-      if (!urlRes.ok) throw new Error('Failed to get upload URL from server.');
-      var urlData = await urlRes.json();
-
-      // Step 2: PUT the image blob directly to S3
-      var uploadRes = await fetch(urlData.presignedUrl, {
-        method:  'PUT',
-        headers: { 'Content-Type': 'image/jpeg' },
-        body:    capturedBlob
-      });
-
-      if (!uploadRes.ok) throw new Error('Failed to upload image to S3.');
-
-      return urlData.fileUrl; // permanent S3 URL
     }
-    // ── END Camera Logic ─────────────────────────────────────────────────────
 
-    // ── Punch In / Out ───────────────────────────────────────────────────────
+    // ── Punch In / Out ────────────────────────────────────────────────────────
     async function punch(type) {
       var empId   = document.getElementById('empId').value.trim();
       var empName = document.getElementById('empName').value.trim();
 
-      if (!empId)   { showAlert('punchAlert', 'Please enter Employee ID.', 'error'); return; }
-      if (type === 'in' && !empName) { showAlert('punchAlert', 'Please enter Employee Name.', 'error'); return; }
+      if (!empId)                          { showAlert('punchAlert', 'Please enter Employee ID.', 'error');   return; }
+      if (type === 'in' && !empName)       { showAlert('punchAlert', 'Please enter Employee Name.', 'error'); return; }
 
-      var photoUrl = null;
-
-      // ✅ If punching in and photo was captured, upload to S3 first
+      // ── PUNCH IN WITH PHOTO ──────────────────────────────────────────────
       if (type === 'in' && capturedBlob) {
         var btn = document.getElementById('btnPunchIn');
-        btn.disabled = true;
+        btn.disabled  = true;
         btn.innerHTML = '<span class="spinner"></span> Uploading photo…';
         showAlert('punchAlert', 'Uploading photo to S3, please wait…', 'info');
 
         try {
-          photoUrl = await uploadPhotoToS3();
+          var result = await uploadPhotoAndPunchIn(empId, empName);
+          showAlert('punchAlert', result.message || 'Punched in! Photo saved to S3.', 'success');
+          fetchStatus(empId);
+          loadSummary();
+          loadAllRecords();
+          stopCamera(false);
+          cameraOpen = false;
+          document.getElementById('cameraBody').classList.remove('open');
         } catch (err) {
-          btn.disabled = false;
-          btn.innerHTML = '&#10003; Punch In';
-          showAlert('punchAlert', 'Photo upload failed: ' + err.message, 'error');
-          return;
+          showAlert('punchAlert', 'Failed: ' + err.message, 'error');
         }
 
-        btn.disabled = false;
+        btn.disabled  = false;
         btn.innerHTML = '&#10003; Punch In';
+        return;
       }
 
-      var url  = type === 'in' ? '/api/punch-in' : '/api/punch-out';
+      // ── PUNCH IN WITHOUT PHOTO  or  PUNCH OUT ────────────────────────────
+      var url  = type === 'in' ? API_BASE + '/api/punch-in' : API_BASE + '/api/punch-out';
       var body = type === 'in'
-        ? { employeeId: empId, employeeName: empName, photoUrl: photoUrl }
+        ? { employeeId: empId, employeeName: empName, photoUrl: null }
         : { employeeId: empId };
 
       fetch(url, {
@@ -669,15 +612,18 @@
         fetchStatus(empId);
         loadSummary();
         loadAllRecords();
-        // Reset camera after successful punch-in
-        if (type === 'in') { stopCamera(false); cameraOpen = false; document.getElementById('cameraBody').classList.remove('open'); }
+        if (type === 'in') {
+          stopCamera(false);
+          cameraOpen = false;
+          document.getElementById('cameraBody').classList.remove('open');
+        }
       })
       .catch(function (e) { showAlert('punchAlert', 'Server error: ' + e.message, 'error'); });
     }
 
-    // ── Summary ──────────────────────────────────────────────────────────────
+    // ── Summary ───────────────────────────────────────────────────────────────
     function loadSummary() {
-      fetch('/api/summary')
+      fetch(API_BASE + '/api/summary')
         .then(function (r) { return r.json(); })
         .then(function (data) {
           var active = data.summary.filter(function (r) { return r.status === 'Active'; }).length;
@@ -689,7 +635,7 @@
         .catch(function () { showAlert('summaryAlert', 'Failed to load summary.', 'error'); });
     }
 
-    // ── Records ──────────────────────────────────────────────────────────────
+    // ── Records ───────────────────────────────────────────────────────────────
     function loadAllRecords() { fetchRecords(''); }
 
     function loadByEmployee() {
@@ -705,7 +651,7 @@
     }
 
     function fetchRecords(query) {
-      fetch('/api/records' + query)
+      fetch(API_BASE + '/api/records' + query)
         .then(function (r) { return r.json(); })
         .then(function (records) { renderTable(records); })
         .catch(function () {
@@ -719,15 +665,9 @@
         box.innerHTML = '<div class="no-data">No records found.</div>';
         return;
       }
-      // ✅ Added Photo column to table
       var html = '<table><thead><tr>'
-        + '<th>Employee</th>'
-        + '<th>Date</th>'
-        + '<th>Punch In</th>'
-        + '<th>Punch Out</th>'
-        + '<th>Duration</th>'
-        + '<th>Photo</th>'
-        + '<th>Status</th>'
+        + '<th>Employee</th><th>Date</th><th>Punch In</th>'
+        + '<th>Punch Out</th><th>Duration</th><th>Photo</th><th>Status</th>'
         + '</tr></thead><tbody>';
 
       for (var i = 0; i < records.length; i++) {
@@ -735,10 +675,8 @@
         var badge = r.punchOut
           ? '<span class="badge badge-blue">Completed</span>'
           : '<span class="badge badge-green">Active</span>';
-
-        // ✅ Show photo thumbnail if photoUrl exists
         var photoCell = r.photoUrl
-          ? '<img class="photo-thumb" src="' + r.photoUrl + '" alt="punch photo" onclick="window.open(\'' + r.photoUrl + '\',\'_blank\')" title="Click to view full photo" />'
+          ? '<img class="photo-thumb" src="' + r.photoUrl + '" alt="photo" onclick="window.open(\'' + r.photoUrl + '\',\'_blank\')" title="Click to view" />'
           : '<span class="no-photo">—</span>';
 
         html += '<tr>'
@@ -755,7 +693,7 @@
       box.innerHTML = html;
     }
 
-    // ── Tabs ─────────────────────────────────────────────────────────────────
+    // ── Tabs ──────────────────────────────────────────────────────────────────
     function switchTab(name) {
       var tabNames = ['all', 'emp', 'date'];
       var btns     = document.querySelectorAll('.tab-btn');
@@ -767,7 +705,7 @@
         '<div class="no-data">Use the controls above to load records.</div>';
     }
 
-    // ── Init ─────────────────────────────────────────────────────────────────
+    // ── Init ──────────────────────────────────────────────────────────────────
     document.getElementById('filterDate').value = new Date().toISOString().split('T')[0];
     loadSummary();
     loadAllRecords();
