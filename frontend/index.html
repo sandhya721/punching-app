@@ -109,9 +109,11 @@
     }
     .btn:hover  { opacity: 0.85; }
     .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-green { background: #38a169; color: #fff; }
     .btn-red   { background: #e53e3e; color: #fff; }
     .btn-blue  { background: #3182ce; color: #fff; }
+    .btn-gray  { background: #a0aec0; color: #fff; }
     .btn-sm    { flex: 0; padding: 10px 20px; }
 
     /* ── Alert ── */
@@ -124,6 +126,7 @@
     }
     .alert.success { background: #c6f6d5; color: #22543d; display: block; }
     .alert.error   { background: #fed7d7; color: #742a2a; display: block; }
+    .alert.info    { background: #bee3f8; color: #2a4365; display: block; }
 
     /* ── Status Pill ── */
     .pill {
@@ -245,6 +248,94 @@
       color: #a0aec0;
       font-size: 0.92rem;
     }
+
+    /* ── ✅ NEW: Camera / Photo Section ── */
+    .camera-section {
+      margin-bottom: 16px;
+      border: 1.5px dashed #e2e8f0;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #f7fafc;
+    }
+
+    .camera-toggle {
+      width: 100%;
+      padding: 10px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #3182ce;
+      text-align: center;
+    }
+    .camera-toggle:hover { background: #ebf8ff; }
+
+    .camera-body {
+      display: none;
+      padding: 12px;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .camera-body.open { display: flex; }
+
+    #cameraVideo {
+      width: 100%;
+      max-width: 320px;
+      border-radius: 8px;
+      background: #000;
+      display: none;
+    }
+    #photoCanvas { display: none; }
+
+    #photoPreview {
+      width: 100%;
+      max-width: 320px;
+      border-radius: 8px;
+      border: 2px solid #38a169;
+      display: none;
+    }
+
+    .camera-controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .photo-status {
+      font-size: 0.82rem;
+      color: #38a169;
+      font-weight: 600;
+      display: none;
+    }
+    .photo-status.visible { display: block; }
+
+    /* ── Spinner ── */
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Photo thumbnail in table */
+    .photo-thumb {
+      width: 40px;
+      height: 40px;
+      object-fit: cover;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid #e2e8f0;
+    }
+    .no-photo { color: #a0aec0; font-size: 0.8rem; }
   </style>
 </head>
 <body>
@@ -272,8 +363,27 @@
       <label class="field-label">Employee Name</label>
       <input type="text" id="empName" placeholder="Full name" />
 
+      <!-- ✅ NEW: Camera / Screenshot Section -->
+      <div class="camera-section">
+        <button class="camera-toggle" onclick="toggleCamera()">
+          📷 Take Photo for Punch-In (optional)
+        </button>
+        <div id="cameraBody" class="camera-body">
+          <video id="cameraVideo" autoplay playsinline></video>
+          <canvas id="photoCanvas"></canvas>
+          <img id="photoPreview" alt="Captured photo" />
+          <div class="camera-controls">
+            <button class="btn btn-blue btn-sm" onclick="startCamera()" id="btnStartCam">Start Camera</button>
+            <button class="btn btn-green btn-sm" onclick="capturePhoto()" id="btnCapture" style="display:none;">Capture</button>
+            <button class="btn btn-gray btn-sm" onclick="retakePhoto()" id="btnRetake" style="display:none;">Retake</button>
+          </div>
+          <span id="photoStatus" class="photo-status">✅ Photo ready to upload</span>
+        </div>
+      </div>
+      <!-- END Camera Section -->
+
       <div class="btn-row">
-        <button class="btn btn-green" onclick="punch('in')">&#10003; Punch In</button>
+        <button class="btn btn-green" id="btnPunchIn" onclick="punch('in')">&#10003; Punch In</button>
         <button class="btn btn-red"   onclick="punch('out')">&#9679; Punch Out</button>
       </div>
 
@@ -364,7 +474,7 @@
       var el = document.getElementById(id);
       el.textContent = msg;
       el.className = 'alert ' + type;
-      setTimeout(function () { el.style.display = 'none'; }, 5000);
+      setTimeout(function () { el.style.display = 'none'; }, 6000);
     }
 
     // ── Status Pill ──────────────────────────────────────────────────────────
@@ -399,23 +509,158 @@
       }
     }
 
+    // ── ✅ NEW: Camera Logic ──────────────────────────────────────────────────
+    var mediaStream     = null;
+    var capturedBlob    = null;
+    var cameraOpen      = false;
+
+    function toggleCamera() {
+      cameraOpen = !cameraOpen;
+      var body = document.getElementById('cameraBody');
+      body.classList.toggle('open', cameraOpen);
+      if (!cameraOpen) stopCamera();
+    }
+
+    function startCamera() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('Camera not supported in this browser.');
+        return;
+      }
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
+        .then(function (stream) {
+          mediaStream = stream;
+          var video = document.getElementById('cameraVideo');
+          video.srcObject = stream;
+          video.style.display = 'block';
+          document.getElementById('btnStartCam').style.display = 'none';
+          document.getElementById('btnCapture').style.display  = 'inline-block';
+          document.getElementById('photoPreview').style.display = 'none';
+          document.getElementById('photoStatus').classList.remove('visible');
+          capturedBlob = null;
+        })
+        .catch(function (err) {
+          alert('Could not access camera: ' + err.message);
+        });
+    }
+
+    function capturePhoto() {
+      var video  = document.getElementById('cameraVideo');
+      var canvas = document.getElementById('photoCanvas');
+      canvas.width  = video.videoWidth  || 640;
+      canvas.height = video.videoHeight || 480;
+      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob(function (blob) {
+        capturedBlob = blob;
+        // Show preview
+        var preview = document.getElementById('photoPreview');
+        preview.src = URL.createObjectURL(blob);
+        preview.style.display = 'block';
+        // Hide video, show retake
+        video.style.display = 'none';
+        document.getElementById('btnCapture').style.display = 'none';
+        document.getElementById('btnRetake').style.display  = 'inline-block';
+        document.getElementById('photoStatus').classList.add('visible');
+        // Stop camera stream to free camera
+        stopCamera(true); // true = keep preview
+      }, 'image/jpeg', 0.85);
+    }
+
+    function retakePhoto() {
+      capturedBlob = null;
+      document.getElementById('photoPreview').style.display = 'none';
+      document.getElementById('btnRetake').style.display    = 'none';
+      document.getElementById('photoStatus').classList.remove('visible');
+      startCamera();
+    }
+
+    function stopCamera(keepPreview) {
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(function (t) { t.stop(); });
+        mediaStream = null;
+      }
+      if (!keepPreview) {
+        document.getElementById('cameraVideo').style.display   = 'none';
+        document.getElementById('photoPreview').style.display  = 'none';
+        document.getElementById('btnStartCam').style.display   = 'inline-block';
+        document.getElementById('btnCapture').style.display    = 'none';
+        document.getElementById('btnRetake').style.display     = 'none';
+        document.getElementById('photoStatus').classList.remove('visible');
+        capturedBlob = null;
+      } else {
+        document.getElementById('cameraVideo').style.display = 'none';
+      }
+    }
+
+    // ✅ Upload photo to S3 using presigned URL, returns the S3 fileUrl
+    async function uploadPhotoToS3() {
+      if (!capturedBlob) return null;
+
+      var empId    = document.getElementById('empId').value.trim();
+      var fileName = 'screenshots/' + empId + '_' + Date.now() + '.jpg';
+
+      // Step 1: Get presigned URL from our backend
+      var urlRes = await fetch('/api/s3-presigned-url', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ fileName: fileName, fileType: 'image/jpeg' })
+      });
+
+      if (!urlRes.ok) throw new Error('Failed to get upload URL from server.');
+      var urlData = await urlRes.json();
+
+      // Step 2: PUT the image blob directly to S3
+      var uploadRes = await fetch(urlData.presignedUrl, {
+        method:  'PUT',
+        headers: { 'Content-Type': 'image/jpeg' },
+        body:    capturedBlob
+      });
+
+      if (!uploadRes.ok) throw new Error('Failed to upload image to S3.');
+
+      return urlData.fileUrl; // permanent S3 URL
+    }
+    // ── END Camera Logic ─────────────────────────────────────────────────────
+
     // ── Punch In / Out ───────────────────────────────────────────────────────
-    function punch(type) {
+    async function punch(type) {
       var empId   = document.getElementById('empId').value.trim();
       var empName = document.getElementById('empName').value.trim();
 
-      if (!empId) { showAlert('punchAlert', 'Please enter Employee ID.', 'error'); return; }
+      if (!empId)   { showAlert('punchAlert', 'Please enter Employee ID.', 'error'); return; }
       if (type === 'in' && !empName) { showAlert('punchAlert', 'Please enter Employee Name.', 'error'); return; }
+
+      var photoUrl = null;
+
+      // ✅ If punching in and photo was captured, upload to S3 first
+      if (type === 'in' && capturedBlob) {
+        var btn = document.getElementById('btnPunchIn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span> Uploading photo…';
+        showAlert('punchAlert', 'Uploading photo to S3, please wait…', 'info');
+
+        try {
+          photoUrl = await uploadPhotoToS3();
+        } catch (err) {
+          btn.disabled = false;
+          btn.innerHTML = '&#10003; Punch In';
+          showAlert('punchAlert', 'Photo upload failed: ' + err.message, 'error');
+          return;
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = '&#10003; Punch In';
+      }
 
       var url  = type === 'in' ? '/api/punch-in' : '/api/punch-out';
       var body = type === 'in'
-        ? { employeeId: empId, employeeName: empName }
+        ? { employeeId: empId, employeeName: empName, photoUrl: photoUrl }
         : { employeeId: empId };
 
       fetch(url, {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body:    JSON.stringify(body)
       })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
       .then(function (res) {
@@ -424,6 +669,8 @@
         fetchStatus(empId);
         loadSummary();
         loadAllRecords();
+        // Reset camera after successful punch-in
+        if (type === 'in') { stopCamera(false); cameraOpen = false; document.getElementById('cameraBody').classList.remove('open'); }
       })
       .catch(function (e) { showAlert('punchAlert', 'Server error: ' + e.message, 'error'); });
     }
@@ -443,9 +690,7 @@
     }
 
     // ── Records ──────────────────────────────────────────────────────────────
-    function loadAllRecords() {
-      fetchRecords('');
-    }
+    function loadAllRecords() { fetchRecords(''); }
 
     function loadByEmployee() {
       var id = document.getElementById('filterEmpId').value.trim();
@@ -474,12 +719,14 @@
         box.innerHTML = '<div class="no-data">No records found.</div>';
         return;
       }
+      // ✅ Added Photo column to table
       var html = '<table><thead><tr>'
         + '<th>Employee</th>'
         + '<th>Date</th>'
         + '<th>Punch In</th>'
         + '<th>Punch Out</th>'
         + '<th>Duration</th>'
+        + '<th>Photo</th>'
         + '<th>Status</th>'
         + '</tr></thead><tbody>';
 
@@ -488,12 +735,19 @@
         var badge = r.punchOut
           ? '<span class="badge badge-blue">Completed</span>'
           : '<span class="badge badge-green">Active</span>';
+
+        // ✅ Show photo thumbnail if photoUrl exists
+        var photoCell = r.photoUrl
+          ? '<img class="photo-thumb" src="' + r.photoUrl + '" alt="punch photo" onclick="window.open(\'' + r.photoUrl + '\',\'_blank\')" title="Click to view full photo" />'
+          : '<span class="no-photo">—</span>';
+
         html += '<tr>'
           + '<td><div class="emp-name">' + r.employeeName + '</div><div class="emp-id">' + r.employeeId + '</div></td>'
           + '<td>' + r.date + '</td>'
           + '<td>' + formatTime(r.punchIn) + '</td>'
           + '<td>' + formatTime(r.punchOut) + '</td>'
           + '<td>' + (r.duration || '-') + '</td>'
+          + '<td>' + photoCell + '</td>'
           + '<td>' + badge + '</td>'
           + '</tr>';
       }
