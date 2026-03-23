@@ -1,18 +1,23 @@
 {
   "name": "punching-app",
   "version": "1.0.0",
+  "description": "Employee Attendance Punch In/Out App with Couchbase and AWS S3",
   "main": "backend/server.js",
   "scripts": {
     "start": "node backend/server.js",
+    "dev":   "nodemon backend/server.js",
     "build": "echo 'No build step'"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/client-s3":          "^3.0.0",
     "@aws-sdk/s3-request-presigner": "^3.0.0",
-    "cors": "^2.8.5",
-    "couchbase": "^4.3.0",
-    "dotenv": "^16.0.0",
-    "express": "^4.18.0",
-    "uuid": "^9.0.0"
+    "cors":       "^2.8.5",
+    "couchbase":  "^4.3.0",
+    "dotenv":     "^16.0.0",
+    "express":    "^4.18.0",
+    "uuid":       "^9.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
   }
 }
