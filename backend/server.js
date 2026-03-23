@@ -49,7 +49,7 @@ const AWS_REGION = process.env.AWS_REGION;
 // ── Middleware ─────────────────────────────────────────────────────────────────
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, '../frontend')));
 
 // ── Couchbase connection ───────────────────────────────────────────────────────
 let collection; // will be set after connect
