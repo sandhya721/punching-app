@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // server.js  —  Punching App with Couchbase Cloud (Capella) + S3 presigned URL
-//               Deployed on Private EC2 behind AWS Application Load Balancer
+//               Deployed on Render + Private EC2 behind AWS Application Load Balancer
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // INSTALL DEPENDENCIES:
@@ -19,7 +19,7 @@
 //   S3_BUCKET_NAME         — punchin-screenshots-bucket
 //   PORT                   — 3000
 //   RENDER_APP_URL         — https://your-app.onrender.com
-//   ALB_DNS_NAME           — my-alb-123456.eu-north-1.elb.amazonaws.com
+//   ALB_DNS_NAME           — my-load-balancer-742843387.eu-north-1.elb.amazonaws.com
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ✅ Load environment variables FIRST before anything else
@@ -42,10 +42,8 @@ const PORT = process.env.PORT || 3000;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ✅ ALB CONFIG 1: Trust Proxy
-// Required when running behind AWS ALB.
-// Tells Express to trust the X-Forwarded-For / X-Forwarded-Proto headers
-// that ALB injects, so req.ip and req.protocol show the real client values
-// instead of the ALB's internal IP.
+// Tells Express to trust X-Forwarded-For / X-Forwarded-Proto headers from ALB
+// so req.ip shows the real client IP instead of the ALB's internal IP.
 // ─────────────────────────────────────────────────────────────────────────────
 app.set('trust proxy', 1);
 
@@ -62,24 +60,33 @@ const AWS_REGION = process.env.AWS_REGION;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ✅ ALB CONFIG 2: CORS
-// Allow requests from your Render frontend AND from the ALB DNS itself.
-// Without this, the browser will block API calls due to cross-origin policy.
+// Whitelists Render frontend, ALB DNS, and localhost.
+// Also allows all *.onrender.com subdomains for Render preview deployments.
 // ─────────────────────────────────────────────────────────────────────────────
 const allowedOrigins = [
   process.env.RENDER_APP_URL,             // e.g. https://punching-app.onrender.com
-  `http://${process.env.ALB_DNS_NAME}`,   // ALB over HTTP
-  `https://${process.env.ALB_DNS_NAME}`,  // ALB over HTTPS (if SSL configured on ALB)
-  'http://localhost:3000',                // local development
-].filter(Boolean); // removes undefined entries if env vars not set
+  `http://${process.env.ALB_DNS_NAME}`,   // ALB HTTP
+  `https://${process.env.ALB_DNS_NAME}`,  // ALB HTTPS (if SSL cert attached)
+  'http://localhost:3000',                // local dev
+].filter(Boolean);
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (Postman, curl, mobile apps)
+    // Allow requests with no origin (curl, Postman, mobile apps)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) {
+
+    // Allow all Render deployment URLs (*.onrender.com)
+    if (origin.endsWith('.onrender.com')) return callback(null, true);
+
+    // Allow if origin is in the whitelist
+    if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
+
+    // Allow if origin contains the ALB DNS (handles http/https variants)
+    if (process.env.ALB_DNS_NAME && origin.includes(process.env.ALB_DNS_NAME)) {
       return callback(null, true);
     }
-    console.warn(`[CORS] Blocked request from origin: ${origin}`);
+
+    console.warn(`[CORS] Blocked: ${origin}`);
     callback(new Error('Not allowed by CORS'));
   },
   methods:        ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -90,23 +97,22 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '../frontend')));
 
-// ── Couchbase connection ───────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Couchbase state — populated once connectCouchbase() resolves
+// ─────────────────────────────────────────────────────────────────────────────
 let collection;
-let clusterInstance; // reuse a single cluster connection
+let clusterInstance;
 
 async function connectCouchbase() {
   clusterInstance = await couchbase.connect(process.env.CB_CONNECTION_STRING, {
     username:      process.env.CB_USERNAME,
     password:      process.env.CB_PASSWORD,
-    configProfile: 'wanDevelopment', // required for Couchbase Capella cloud
+    configProfile: 'wanDevelopment',
   });
-
   const bucket = clusterInstance.bucket(process.env.CB_BUCKET_NAME);
   const scope  = bucket.scope(process.env.CB_SCOPE_NAME || '_default');
   collection   = scope.collection(process.env.CB_COLLECTION_NAME || 'attendance');
-
   console.log('✅ Connected to Couchbase Capella');
-  return clusterInstance;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -120,33 +126,45 @@ function calcDuration(punchIn, punchOut) {
   return `${h}h ${m < 10 ? '0' + m : m}m`;
 }
 
-// N1QL query helper using shared cluster instance
 async function runQuery(query, parameters) {
   return clusterInstance.query(query, { parameters });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ✅ RENDER FIX: Guard middleware — must be BEFORE all /api routes
+//
+// If Couchbase hasn't connected yet, return 503 instead of crashing.
+// This keeps the app alive on Render while the DB is still connecting.
+// ─────────────────────────────────────────────────────────────────────────────
+app.use('/api', (req, res, next) => {
+  if (!clusterInstance || !collection) {
+    return res.status(503).json({
+      error: 'Server is starting up, database not ready yet. Please retry in a few seconds.'
+    });
+  }
+  next();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ✅ ALB CONFIG 3: Health Check Endpoint   GET /health
 //
-// AWS ALB pings this route on a fixed interval to check if this EC2 instance
-// is alive and healthy. If it returns non-200, ALB marks the instance
-// UNHEALTHY and stops sending traffic to it.
-//
-// Configure in AWS Console → EC2 → Target Groups → your target group:
-//   Health check protocol  → HTTP
-//   Health check path      → /health
-//   Healthy threshold      → 2   (2 consecutive successes = healthy)
-//   Unhealthy threshold    → 3   (3 consecutive failures  = unhealthy)
-//   Timeout                → 5 seconds
-//   Interval               → 30 seconds
-//   Success HTTP codes     → 200
+// ALB pings this route every 30s. Must return 200 or instance is marked unhealthy.
+// Configure in AWS Console → EC2 → Target Groups → Health checks:
+//   Path            → /health
+//   Protocol        → HTTP
+//   Port            → 3000
+//   Healthy codes   → 200
+//   Interval        → 30s
+//   Timeout         → 5s
+//   Healthy thresh  → 2
+//   Unhealthy thresh→ 3
 // ─────────────────────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.status(200).json({
-    status:    'ok',
+    status:   'ok',
+    uptime:   `${Math.floor(process.uptime())}s`,
+    database: clusterInstance && collection ? 'connected' : 'connecting...',
     timestamp: new Date().toISOString(),
-    service:   'punching-app',
-    uptime:    `${Math.floor(process.uptime())}s`,
   });
 });
 
@@ -159,17 +177,14 @@ app.post('/api/s3-presigned-url', async (req, res) => {
   if (!fileName || !fileType) {
     return res.status(400).json({ error: 'fileName and fileType are required.' });
   }
-
   try {
     const command = new PutObjectCommand({
       Bucket:      BUCKET,
       Key:         fileName,
       ContentType: fileType,
     });
-
     const presignedUrl = await getSignedUrl(s3, command, { expiresIn: 300 });
     const fileUrl      = `https://${BUCKET}.s3.${AWS_REGION}.amazonaws.com/${fileName}`;
-
     res.json({ presignedUrl, fileUrl });
   } catch (err) {
     console.error('Presigned URL error:', err);
@@ -179,18 +194,14 @@ app.post('/api/s3-presigned-url', async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ROUTE: POST /api/punch-in
-// Saves a new attendance record to Couchbase
 // Body: { employeeId, employeeName, photoUrl? }
 // ─────────────────────────────────────────────────────────────────────────────
 app.post('/api/punch-in', async (req, res) => {
   const { employeeId, employeeName, photoUrl } = req.body;
-
   if (!employeeId || !employeeName) {
     return res.status(400).json({ error: 'employeeId and employeeName are required.' });
   }
-
   try {
-    // Check: already punched in today?
     const checkQuery = `
       SELECT META().id
       FROM \`${process.env.CB_BUCKET_NAME}\`.\`${process.env.CB_SCOPE_NAME || '_default'}\`.\`${process.env.CB_COLLECTION_NAME || 'attendance'}\`
@@ -199,31 +210,24 @@ app.post('/api/punch-in', async (req, res) => {
         AND punchOut   IS MISSING
       LIMIT 1
     `;
-
     const checkResult = await runQuery(checkQuery, { employeeId, date: today() });
-
     if (checkResult.rows && checkResult.rows.length > 0) {
       return res.status(400).json({ error: 'Already punched in today.' });
     }
-
-    // Create new record
     const docId  = `attendance::${employeeId}::${Date.now()}`;
     const record = {
-      type:         'attendance',
+      type:        'attendance',
       employeeId,
       employeeName,
-      date:         today(),
-      punchIn:      new Date().toISOString(),
-      punchOut:     null,
-      duration:     null,
-      photoUrl:     photoUrl || null, // S3 URL stored here
+      date:        today(),
+      punchIn:     new Date().toISOString(),
+      punchOut:    null,
+      duration:    null,
+      photoUrl:    photoUrl || null,
     };
-
     await collection.insert(docId, record);
-
-    console.log(`[PUNCH IN]  ${employeeName} (${employeeId})  doc: ${docId}  photo: ${photoUrl || 'none'}`);
+    console.log(`[PUNCH IN]  ${employeeName} (${employeeId})  photo: ${photoUrl || 'none'}`);
     res.json({ message: `Punched in successfully.${photoUrl ? ' Photo saved to S3.' : ''}` });
-
   } catch (err) {
     console.error('Punch-in error:', err);
     res.status(500).json({ error: 'Server error during punch-in.' });
@@ -232,12 +236,10 @@ app.post('/api/punch-in', async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ROUTE: POST /api/punch-out
-// Finds the active punch-in record and sets punchOut + duration
 // ─────────────────────────────────────────────────────────────────────────────
 app.post('/api/punch-out', async (req, res) => {
   const { employeeId } = req.body;
   if (!employeeId) return res.status(400).json({ error: 'employeeId is required.' });
-
   try {
     const query = `
       SELECT META().id AS docId, *
@@ -247,28 +249,21 @@ app.post('/api/punch-out', async (req, res) => {
         AND punchOut   IS MISSING
       LIMIT 1
     `;
-
     const result = await runQuery(query, { employeeId, date: today() });
-
     if (!result.rows || result.rows.length === 0) {
       return res.status(400).json({ error: 'No active punch-in found for today.' });
     }
-
-    const row    = result.rows[0];
-    const docId  = row.docId;
-    const record = row[process.env.CB_COLLECTION_NAME || 'attendance'];
-
+    const row      = result.rows[0];
+    const docId    = row.docId;
+    const record   = row[process.env.CB_COLLECTION_NAME || 'attendance'];
     const punchOut = new Date().toISOString();
     const duration = calcDuration(record.punchIn, punchOut);
-
     await collection.mutateIn(docId, [
       couchbase.MutateInSpec.upsert('punchOut', punchOut),
       couchbase.MutateInSpec.upsert('duration', duration),
     ]);
-
     console.log(`[PUNCH OUT] ${record.employeeName} (${employeeId})  duration: ${duration}`);
     res.json({ message: `Punched out successfully. Duration: ${duration}` });
-
   } catch (err) {
     console.error('Punch-out error:', err);
     res.status(500).json({ error: 'Server error during punch-out.' });
@@ -277,7 +272,6 @@ app.post('/api/punch-out', async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ROUTE: GET /api/status/:employeeId
-// Returns whether an employee is currently punched in
 // ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/status/:employeeId', async (req, res) => {
   try {
@@ -289,15 +283,11 @@ app.get('/api/status/:employeeId', async (req, res) => {
         AND punchOut   IS MISSING
       LIMIT 1
     `;
-
     const result = await runQuery(query, { employeeId: req.params.employeeId, date: today() });
-
     const record = result.rows.length > 0
       ? result.rows[0][process.env.CB_COLLECTION_NAME || 'attendance']
       : null;
-
     res.json({ isPunchedIn: !!record, record });
-
   } catch (err) {
     console.error('Status error:', err);
     res.status(500).json({ error: 'Server error.' });
@@ -306,13 +296,12 @@ app.get('/api/status/:employeeId', async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ROUTE: GET /api/records
-// Optional query params: ?employeeId=EMP001  OR  ?date=2024-03-18
+// Optional: ?employeeId=EMP001  OR  ?date=2024-03-18
 // ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/records', async (req, res) => {
   try {
     let whereClause = 'type = "attendance"';
     const params    = {};
-
     if (req.query.employeeId) {
       whereClause += ' AND employeeId = $employeeId';
       params.employeeId = req.query.employeeId;
@@ -321,19 +310,15 @@ app.get('/api/records', async (req, res) => {
       whereClause += ' AND date = $date';
       params.date = req.query.date;
     }
-
     const query = `
       SELECT *
       FROM \`${process.env.CB_BUCKET_NAME}\`.\`${process.env.CB_SCOPE_NAME || '_default'}\`.\`${process.env.CB_COLLECTION_NAME || 'attendance'}\`
       WHERE ${whereClause}
       ORDER BY punchIn DESC
     `;
-
     const result  = await runQuery(query, params);
     const records = result.rows.map(r => r[process.env.CB_COLLECTION_NAME || 'attendance']);
-
     res.json(records);
-
   } catch (err) {
     console.error('Records error:', err);
     res.status(500).json({ error: 'Server error fetching records.' });
@@ -342,7 +327,6 @@ app.get('/api/records', async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ROUTE: GET /api/summary
-// Returns today's total, active, and completed counts
 // ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/summary', async (req, res) => {
   try {
@@ -352,16 +336,13 @@ app.get('/api/summary', async (req, res) => {
       WHERE type = "attendance"
         AND date = $date
     `;
-
     const result  = await runQuery(query, { date: today() });
     const summary = result.rows.map(r => ({
       employeeId:   r.employeeId,
       employeeName: r.employeeName,
       status:       r.punchOut ? 'Completed' : 'Active',
     }));
-
     res.json({ total: summary.length, summary });
-
   } catch (err) {
     console.error('Summary error:', err);
     res.status(500).json({ error: 'Server error fetching summary.' });
@@ -369,24 +350,27 @@ app.get('/api/summary', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ✅ ALB CONFIG 4: Listen on 0.0.0.0 (all network interfaces)
+// ✅ RENDER FIX + ALB CONFIG 4: Listen on 0.0.0.0 FIRST, connect DB after
 //
-// By default Node.js listens only on 127.0.0.1 (localhost).
-// The ALB forwards traffic from the Public Subnet to this Private EC2 instance
-// via the EC2's private network interface — so the app MUST listen on 0.0.0.0
-// (all interfaces), otherwise ALB health checks and forwarded requests will
-// be refused with "connection refused".
+// OLD (broken) approach:
+//   connectCouchbase().then(() => app.listen(...))
+//   → If DB is slow, Render times out waiting for a port → deploy fails
+//
+// NEW (correct) approach:
+//   app.listen() immediately  → Render detects port right away ✅
+//   connectCouchbase() after  → DB connects in background ✅
+//   /api guard middleware     → Returns 503 until DB is ready ✅
+//   /health always 200        → ALB health check never fails ✅
 // ─────────────────────────────────────────────────────────────────────────────
-connectCouchbase()
-  .then(() => {
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Punching App running on 0.0.0.0:${PORT}`);
-      console.log(`   ALB DNS     : ${process.env.ALB_DNS_NAME  || 'not set'}`);
-      console.log(`   Render URL  : ${process.env.RENDER_APP_URL || 'not set'}`);
-      console.log(`   Health check: http://0.0.0.0:${PORT}/health`);
-    });
-  })
-  .catch(err => {
-    console.error('❌ Failed to connect to Couchbase:', err);
-    process.exit(1);
-  });
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server listening on 0.0.0.0:${PORT}`);
+  console.log(`   ALB DNS     : ${process.env.ALB_DNS_NAME   || 'not set'}`);
+  console.log(`   Render URL  : ${process.env.RENDER_APP_URL || 'not set'}`);
+  console.log(`   Health check: GET /health`);
+});
+
+connectCouchbase().catch(err => {
+  console.error('❌ Couchbase connection failed:', err.message);
+  // Server stays alive — /health still returns 200
+  // /api routes return 503 via the guard middleware above
+});
