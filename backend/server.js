@@ -1,376 +1,299 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// server.js  —  Punching App with Couchbase Cloud (Capella) + S3 presigned URL
-//               Deployed on Render + Private EC2 behind AWS Application Load Balancer
-// ─────────────────────────────────────────────────────────────────────────────
-//
-// INSTALL DEPENDENCIES:
-//   npm install express cors dotenv couchbase @aws-sdk/client-s3 @aws-sdk/s3-request-presigner uuid
-//
-// .env variables needed:
-//   CB_CONNECTION_STRING   — e.g. couchbases://cb.xxxxxx.cloud.couchbase.com
-//   CB_USERNAME            — your Couchbase database user
-//   CB_PASSWORD            — your Couchbase database password
-//   CB_BUCKET_NAME         — e.g. punching-app
-//   CB_SCOPE_NAME          — _default  (or your custom scope)
-//   CB_COLLECTION_NAME     — attendance (or your collection name)
-//   AWS_REGION             — eu-north-1
-//   AWS_ACCESS_KEY_ID      — your AWS key
-//   AWS_SECRET_ACCESS_KEY  — your AWS secret
-//   S3_BUCKET_NAME         — punchin-screenshots-bucket
-//   PORT                   — 3000
-//   RENDER_APP_URL         — https://your-app.onrender.com
-//   ALB_DNS_NAME           — my-load-balancer-742843387.eu-north-1.elb.amazonaws.com
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ✅ Load environment variables FIRST before anything else
-require('dotenv').config();
-
-const express        = require('express');
-const cors           = require('cors');
-const path           = require('path');
-const { v4: uuidv4 } = require('uuid');
-
-// AWS S3
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
-const { getSignedUrl }               = require('@aws-sdk/s3-request-presigner');
-
-// Couchbase
-const couchbase = require('couchbase');
-
-const app  = express();
-const PORT = process.env.PORT || 3000;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ✅ ALB CONFIG 1: Trust Proxy
-// Tells Express to trust X-Forwarded-For / X-Forwarded-Proto headers from ALB
-// so req.ip shows the real client IP instead of the ALB's internal IP.
-// ─────────────────────────────────────────────────────────────────────────────
-app.set('trust proxy', 1);
-
-// ── AWS S3 client ─────────────────────────────────────────────────────────────
-const s3 = new S3Client({
-  region: process.env.AWS_REGION,
-  credentials: {
-    accessKeyId:     process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+{
+  "name": "punch-in-react-app",
+  "version": "1.0.0",
+  "description": "Punch Clock time tracking app",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "cd client && npm install && npm run build",
+    "install-all": "npm install && cd client && npm install"
   },
-});
-const BUCKET     = process.env.S3_BUCKET_NAME;
-const AWS_REGION = process.env.AWS_REGION;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ✅ ALB CONFIG 2: CORS
-// Whitelists Render frontend, ALB DNS, and localhost.
-// Also allows all *.onrender.com subdomains for Render preview deployments.
-// ─────────────────────────────────────────────────────────────────────────────
-const allowedOrigins = [
-  process.env.RENDER_APP_URL,             // e.g. https://punching-app.onrender.com
-  `http://${process.env.ALB_DNS_NAME}`,   // ALB HTTP
-  `https://${process.env.ALB_DNS_NAME}`,  // ALB HTTPS (if SSL cert attached)
-  'http://localhost:3000',                // local dev
-].filter(Boolean);
-
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (curl, Postman, mobile apps)
-    if (!origin) return callback(null, true);
-
-    // Allow all Render deployment URLs (*.onrender.com)
-    if (origin.endsWith('.onrender.com')) return callback(null, true);
-
-    // Allow if origin is in the whitelist
-    if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
-
-    // Allow if origin contains the ALB DNS (handles http/https variants)
-    if (process.env.ALB_DNS_NAME && origin.includes(process.env.ALB_DNS_NAME)) {
-      return callback(null, true);
-    }
-
-    console.warn(`[CORS] Blocked: ${origin}`);
-    callback(new Error('Not allowed by CORS'));
-  },
-  methods:        ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials:    true,
-}));
-
-app.use(express.json({ limit: '10mb' }));
-app.use(express.static(path.join(__dirname, '../frontend')));
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Couchbase state — populated once connectCouchbase() resolves
-// ─────────────────────────────────────────────────────────────────────────────
-let collection;
-let clusterInstance;
-
-async function connectCouchbase() {
-  clusterInstance = await couchbase.connect(process.env.CB_CONNECTION_STRING, {
-    username:      process.env.CB_USERNAME,
-    password:      process.env.CB_PASSWORD,
-    configProfile: 'wanDevelopment',
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
+ 
+render.yaml
+ 
+const express  = require("express");
+const path     = require("path");
+const fs       = require("fs");
+const http     = require("http");
+const https    = require("https");
+ 
+const app = express();
+ 
+app.use(express.json({ limit: "10mb" }));
+app.use(express.static(path.join(__dirname, "client/build")));
+ 
+// ── Config from Render environment variables ─────────────────────
+// Render Dashboard → Environment → Add these:
+//   EC2_PRIVATE_IP  = 13.127.203.140      (Bastion public IP)
+//   EC2_PORT        = 5000
+//   AWS_REGION      = ap-south-1
+//   SNS_TOPIC_ARN   = arn:aws:sns:ap-south-1:XXXXXXXXXXXX:punch-notifications
+//   AWS_ACCESS_KEY  = your IAM access key
+//   AWS_SECRET_KEY  = your IAM secret key
+const EC2_HOST      = process.env.EC2_PRIVATE_IP || "13.127.203.140";
+const EC2_PORT      = parseInt(process.env.EC2_PORT || "5000");
+const AWS_REGION    = process.env.AWS_REGION     || "ap-south-1";
+const SNS_TOPIC_ARN = process.env.SNS_TOPIC_ARN  || "";
+const AWS_ACCESS    = process.env.AWS_ACCESS_KEY  || "";
+const AWS_SECRET    = process.env.AWS_SECRET_KEY  || "";
+ 
+const DATA_FILE = path.join(__dirname, "entries.json");
+ 
+function loadEntries() {
+  if (!fs.existsSync(DATA_FILE)) return [];
+  try { return JSON.parse(fs.readFileSync(DATA_FILE, "utf8")); }
+  catch { return []; }
+}
+ 
+function saveEntries(entries) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(entries, null, 2));
+}
+ 
+// ── AWS Signature v4 helper (no SDK needed on Render) ────────────
+const crypto = require("crypto");
+ 
+function sign(key, msg) {
+  return crypto.createHmac("sha256", key).update(msg).digest();
+}
+function getSignatureKey(secret, date, region, service) {
+  const kDate    = sign("AWS4" + secret, date);
+  const kRegion  = sign(kDate, region);
+  const kService = sign(kRegion, service);
+  const kSigning = sign(kService, "aws4_request");
+  return kSigning;
+}
+ 
+// ── Send SNS notification ─────────────────────────────────────────
+async function sendSNSNotification(user, type, timestamp, s3Url) {
+  if (!SNS_TOPIC_ARN || !AWS_ACCESS || !AWS_SECRET) {
+    console.warn("⚠️  SNS not configured — skipping notification");
+    return;
+  }
+ 
+  const time      = new Date(timestamp);
+  const timeStr   = time.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+  const icon      = type === "Punch In"    ? "🟢" :
+                    type === "Punch Out"   ? "🔴" :
+                    type === "Start Break" ? "🟡" : "🔵";
+ 
+  const message = [
+    `${icon} PUNCH CLOCK ALERT`,
+    `─────────────────────`,
+    `Employee : ${user}`,
+    `Action   : ${type}`,
+    `Time     : ${timeStr} (IST)`,
+    s3Url ? `Selfie   : ${s3Url}` : `Selfie   : Not captured`,
+    `─────────────────────`,
+    `Punch Clock App`,
+  ].join("\n");
+ 
+  const subject = `${icon} ${user} — ${type} at ${timeStr}`;
+ 
+  // Build SNS Publish request
+  const endpoint  = `https://sns.${AWS_REGION}.amazonaws.com/`;
+  const now       = new Date();
+  const amzDate   = now.toISOString().replace(/[:-]|\.\d{3}/g, "").slice(0, 15) + "Z";
+  const dateStamp = amzDate.slice(0, 8);
+ 
+  const params = new URLSearchParams({
+    Action:   "Publish",
+    TopicArn: SNS_TOPIC_ARN,
+    Message:  message,
+    Subject:  subject,
+    Version:  "2010-03-31",
   });
-  const bucket = clusterInstance.bucket(process.env.CB_BUCKET_NAME);
-  const scope  = bucket.scope(process.env.CB_SCOPE_NAME || '_default');
-  collection   = scope.collection(process.env.CB_COLLECTION_NAME || 'attendance');
-  console.log('✅ Connected to Couchbase Capella');
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-const today = () => new Date().toISOString().split('T')[0];
-
-function calcDuration(punchIn, punchOut) {
-  const ms   = new Date(punchOut) - new Date(punchIn);
-  const mins = Math.floor(ms / 60000);
-  const h    = Math.floor(mins / 60);
-  const m    = mins % 60;
-  return `${h}h ${m < 10 ? '0' + m : m}m`;
-}
-
-async function runQuery(query, parameters) {
-  return clusterInstance.query(query, { parameters });
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ✅ RENDER FIX: Guard middleware — must be BEFORE all /api routes
-//
-// If Couchbase hasn't connected yet, return 503 instead of crashing.
-// This keeps the app alive on Render while the DB is still connecting.
-// ─────────────────────────────────────────────────────────────────────────────
-app.use('/api', (req, res, next) => {
-  if (!clusterInstance || !collection) {
-    return res.status(503).json({
-      error: 'Server is starting up, database not ready yet. Please retry in a few seconds.'
-    });
-  }
-  next();
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ✅ ALB CONFIG 3: Health Check Endpoint   GET /health
-//
-// ALB pings this route every 30s. Must return 200 or instance is marked unhealthy.
-// Configure in AWS Console → EC2 → Target Groups → Health checks:
-//   Path            → /health
-//   Protocol        → HTTP
-//   Port            → 3000
-//   Healthy codes   → 200
-//   Interval        → 30s
-//   Timeout         → 5s
-//   Healthy thresh  → 2
-//   Unhealthy thresh→ 3
-// ─────────────────────────────────────────────────────────────────────────────
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status:   'ok',
-    uptime:   `${Math.floor(process.uptime())}s`,
-    database: clusterInstance && collection ? 'connected' : 'connecting...',
-    timestamp: new Date().toISOString(),
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ROUTE: POST /api/s3-presigned-url
-// Returns a short-lived presigned PUT URL + permanent S3 file URL
-// ─────────────────────────────────────────────────────────────────────────────
-app.post('/api/s3-presigned-url', async (req, res) => {
-  const { fileName, fileType } = req.body;
-  if (!fileName || !fileType) {
-    return res.status(400).json({ error: 'fileName and fileType are required.' });
-  }
-  try {
-    const command = new PutObjectCommand({
-      Bucket:      BUCKET,
-      Key:         fileName,
-      ContentType: fileType,
-    });
-    const presignedUrl = await getSignedUrl(s3, command, { expiresIn: 300 });
-    const fileUrl      = `https://${BUCKET}.s3.${AWS_REGION}.amazonaws.com/${fileName}`;
-    res.json({ presignedUrl, fileUrl });
-  } catch (err) {
-    console.error('Presigned URL error:', err);
-    res.status(500).json({ error: 'Could not generate upload URL.' });
-  }
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ROUTE: POST /api/punch-in
-// Body: { employeeId, employeeName, photoUrl? }
-// ─────────────────────────────────────────────────────────────────────────────
-app.post('/api/punch-in', async (req, res) => {
-  const { employeeId, employeeName, photoUrl } = req.body;
-  if (!employeeId || !employeeName) {
-    return res.status(400).json({ error: 'employeeId and employeeName are required.' });
-  }
-  try {
-    const checkQuery = `
-      SELECT META().id
-      FROM \`${process.env.CB_BUCKET_NAME}\`.\`${process.env.CB_SCOPE_NAME || '_default'}\`.\`${process.env.CB_COLLECTION_NAME || 'attendance'}\`
-      WHERE employeeId = $employeeId
-        AND date       = $date
-        AND punchOut   IS MISSING
-      LIMIT 1
-    `;
-    const checkResult = await runQuery(checkQuery, { employeeId, date: today() });
-    if (checkResult.rows && checkResult.rows.length > 0) {
-      return res.status(400).json({ error: 'Already punched in today.' });
-    }
-    const docId  = `attendance::${employeeId}::${Date.now()}`;
-    const record = {
-      type:        'attendance',
-      employeeId,
-      employeeName,
-      date:        today(),
-      punchIn:     new Date().toISOString(),
-      punchOut:    null,
-      duration:    null,
-      photoUrl:    photoUrl || null,
+  const bodyStr = params.toString();
+ 
+  // Canonical request
+  const payloadHash     = crypto.createHash("sha256").update(bodyStr).digest("hex");
+  const canonicalHeaders = `content-type:application/x-www-form-urlencoded\nhost:sns.${AWS_REGION}.amazonaws.com\nx-amz-date:${amzDate}\n`;
+  const signedHeaders    = "content-type;host;x-amz-date";
+  const canonicalRequest = [
+    "POST", "/", "",
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash,
+  ].join("\n");
+ 
+  // String to sign
+  const credScope   = `${dateStamp}/${AWS_REGION}/sns/aws4_request`;
+  const strToSign   = `AWS4-HMAC-SHA256\n${amzDate}\n${credScope}\n` +
+    crypto.createHash("sha256").update(canonicalRequest).digest("hex");
+ 
+  // Signature
+  const signingKey  = getSignatureKey(AWS_SECRET, dateStamp, AWS_REGION, "sns");
+  const signature   = crypto.createHmac("sha256", signingKey).update(strToSign).digest("hex");
+  const authHeader  = `AWS4-HMAC-SHA256 Credential=${AWS_ACCESS}/${credScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+ 
+  return new Promise((resolve, reject) => {
+    const reqOptions = {
+      hostname: `sns.${AWS_REGION}.amazonaws.com`,
+      path:     "/",
+      method:   "POST",
+      headers:  {
+        "Content-Type":   "application/x-www-form-urlencoded",
+        "Content-Length": Buffer.byteLength(bodyStr),
+        "X-Amz-Date":     amzDate,
+        "Authorization":  authHeader,
+      },
     };
-    await collection.insert(docId, record);
-    console.log(`[PUNCH IN]  ${employeeName} (${employeeId})  photo: ${photoUrl || 'none'}`);
-    res.json({ message: `Punched in successfully.${photoUrl ? ' Photo saved to S3.' : ''}` });
-  } catch (err) {
-    console.error('Punch-in error:', err);
-    res.status(500).json({ error: 'Server error during punch-in.' });
-  }
+ 
+    const req = https.request(reqOptions, (res) => {
+      let data = "";
+      res.on("data", c => data += c);
+      res.on("end", () => {
+        if (res.statusCode === 200) {
+          console.log("✅ SNS notification sent:", subject);
+          resolve();
+        } else {
+          console.error("❌ SNS error response:", res.statusCode, data);
+          reject(new Error(`SNS HTTP ${res.statusCode}`));
+        }
+      });
+    });
+ 
+    req.on("error", (e) => {
+      console.error("❌ SNS request error:", e.message);
+      reject(e);
+    });
+ 
+    req.write(bodyStr);
+    req.end();
+  });
+}
+ 
+// ── Helper: forward selfie to EC2 → S3 ──────────────────────────
+function uploadToEC2(payload) {
+  return new Promise((resolve, reject) => {
+    const body    = JSON.stringify(payload);
+    const options = {
+      hostname: EC2_HOST,
+      port:     EC2_PORT,
+      path:     "/upload-selfie",
+      method:   "POST",
+      headers:  {
+        "Content-Type":   "application/json",
+        "Content-Length": Buffer.byteLength(body),
+      },
+    };
+ 
+    const req = http.request(options, (res) => {
+      let data = "";
+      res.on("data", chunk => { data += chunk; });
+      res.on("end", () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.success && parsed.s3Url) resolve(parsed.s3Url);
+          else reject(new Error(parsed.error || "EC2 upload returned no URL"));
+        } catch {
+          reject(new Error("Invalid JSON response from EC2"));
+        }
+      });
+    });
+ 
+    req.on("error", (err) => reject(err));
+    req.setTimeout(20000, () => {
+      req.destroy();
+      reject(new Error("EC2 request timed out after 20s"));
+    });
+ 
+    req.write(body);
+    req.end();
+  });
+}
+ 
+// ── GET all entries ──────────────────────────────────────────────
+app.get("/api/entries", (req, res) => {
+  res.json(loadEntries());
 });
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ROUTE: POST /api/punch-out
-// ─────────────────────────────────────────────────────────────────────────────
-app.post('/api/punch-out', async (req, res) => {
-  const { employeeId } = req.body;
-  if (!employeeId) return res.status(400).json({ error: 'employeeId is required.' });
-  try {
-    const query = `
-      SELECT META().id AS docId, *
-      FROM \`${process.env.CB_BUCKET_NAME}\`.\`${process.env.CB_SCOPE_NAME || '_default'}\`.\`${process.env.CB_COLLECTION_NAME || 'attendance'}\`
-      WHERE employeeId = $employeeId
-        AND date       = $date
-        AND punchOut   IS MISSING
-      LIMIT 1
-    `;
-    const result = await runQuery(query, { employeeId, date: today() });
-    if (!result.rows || result.rows.length === 0) {
-      return res.status(400).json({ error: 'No active punch-in found for today.' });
+ 
+// ── POST punch ───────────────────────────────────────────────────
+app.post("/api/punch", async (req, res) => {
+  const { type, user, manualDate, manualTime, selfie } = req.body;
+ 
+  if (!type) return res.status(400).json({ message: "Action type is required." });
+  if (!user) return res.status(400).json({ message: "User is required." });
+ 
+  const timestamp = (manualDate && manualTime)
+    ? new Date(`${manualDate}T${manualTime}`).toISOString()
+    : new Date().toISOString();
+ 
+  // Step 1 — Upload selfie to S3 via EC2
+  let finalSelfieUrl = null;
+  if (selfie) {
+    try {
+      console.log(`⬆️  Forwarding selfie to EC2 for ${user} - ${type}`);
+      finalSelfieUrl = await uploadToEC2({ imageBase64: selfie, user, actionType: type, timestamp });
+      console.log("✅ S3 URL received:", finalSelfieUrl);
+    } catch (err) {
+      console.error("❌ EC2 upload failed:", err.message);
+      return res.status(502).json({
+        message: `Selfie upload to S3 failed: ${err.message}`,
+        hint:    "Check EC2 is running and Security Group port 5000 is open",
+      });
     }
-    const row      = result.rows[0];
-    const docId    = row.docId;
-    const record   = row[process.env.CB_COLLECTION_NAME || 'attendance'];
-    const punchOut = new Date().toISOString();
-    const duration = calcDuration(record.punchIn, punchOut);
-    await collection.mutateIn(docId, [
-      couchbase.MutateInSpec.upsert('punchOut', punchOut),
-      couchbase.MutateInSpec.upsert('duration', duration),
-    ]);
-    console.log(`[PUNCH OUT] ${record.employeeName} (${employeeId})  duration: ${duration}`);
-    res.json({ message: `Punched out successfully. Duration: ${duration}` });
-  } catch (err) {
-    console.error('Punch-out error:', err);
-    res.status(500).json({ error: 'Server error during punch-out.' });
   }
+ 
+  // Step 2 — Save punch entry
+  const entry = {
+    type,
+    user:   user.trim(),
+    time:   timestamp,
+    selfie: finalSelfieUrl,
+  };
+ 
+  const entries = loadEntries();
+  entries.push(entry);
+  saveEntries(entries);
+  console.log(`✅ Punch saved: ${type} for ${user} | selfie: ${finalSelfieUrl || "none"}`);
+ 
+  // Step 3 — Send SNS notification (non-blocking — don't fail punch if SNS fails)
+  sendSNSNotification(user, type, timestamp, finalSelfieUrl)
+    .catch(err => console.error("⚠️  SNS notification failed (punch still saved):", err.message));
+ 
+  res.json({ message: `${type} recorded successfully for ${user}.`, entry });
 });
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ROUTE: GET /api/status/:employeeId
-// ─────────────────────────────────────────────────────────────────────────────
-app.get('/api/status/:employeeId', async (req, res) => {
-  try {
-    const query = `
-      SELECT *
-      FROM \`${process.env.CB_BUCKET_NAME}\`.\`${process.env.CB_SCOPE_NAME || '_default'}\`.\`${process.env.CB_COLLECTION_NAME || 'attendance'}\`
-      WHERE employeeId = $employeeId
-        AND date       = $date
-        AND punchOut   IS MISSING
-      LIMIT 1
-    `;
-    const result = await runQuery(query, { employeeId: req.params.employeeId, date: today() });
-    const record = result.rows.length > 0
-      ? result.rows[0][process.env.CB_COLLECTION_NAME || 'attendance']
-      : null;
-    res.json({ isPunchedIn: !!record, record });
-  } catch (err) {
-    console.error('Status error:', err);
-    res.status(500).json({ error: 'Server error.' });
-  }
+ 
+// ── DELETE all entries ───────────────────────────────────────────
+app.delete("/api/entries", (req, res) => {
+  saveEntries([]);
+  res.json({ message: "All entries cleared." });
 });
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ROUTE: GET /api/records
-// Optional: ?employeeId=EMP001  OR  ?date=2024-03-18
-// ─────────────────────────────────────────────────────────────────────────────
-app.get('/api/records', async (req, res) => {
-  try {
-    let whereClause = 'type = "attendance"';
-    const params    = {};
-    if (req.query.employeeId) {
-      whereClause += ' AND employeeId = $employeeId';
-      params.employeeId = req.query.employeeId;
-    }
-    if (req.query.date) {
-      whereClause += ' AND date = $date';
-      params.date = req.query.date;
-    }
-    const query = `
-      SELECT *
-      FROM \`${process.env.CB_BUCKET_NAME}\`.\`${process.env.CB_SCOPE_NAME || '_default'}\`.\`${process.env.CB_COLLECTION_NAME || 'attendance'}\`
-      WHERE ${whereClause}
-      ORDER BY punchIn DESC
-    `;
-    const result  = await runQuery(query, params);
-    const records = result.rows.map(r => r[process.env.CB_COLLECTION_NAME || 'attendance']);
-    res.json(records);
-  } catch (err) {
-    console.error('Records error:', err);
-    res.status(500).json({ error: 'Server error fetching records.' });
-  }
+ 
+// ── EC2 health check ─────────────────────────────────────────────
+app.get("/api/ec2-health", (req, res) => {
+  const options = {
+    hostname: EC2_HOST,
+    port:     EC2_PORT,
+    path:     "/health",
+    method:   "GET",
+  };
+  const probe = http.request(options, (r) => {
+    let d = "";
+    r.on("data", c => d += c);
+    r.on("end", () => {
+      try { res.json({ ec2: "reachable", host: EC2_HOST, response: JSON.parse(d) }); }
+      catch { res.json({ ec2: "reachable but bad JSON", host: EC2_HOST }); }
+    });
+  });
+  probe.on("error", (e) => res.json({ ec2: "unreachable", host: EC2_HOST, error: e.message }));
+  probe.setTimeout(5000, () => { probe.destroy(); res.json({ ec2: "timeout", host: EC2_HOST }); });
+  probe.end();
 });
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ROUTE: GET /api/summary
-// ─────────────────────────────────────────────────────────────────────────────
-app.get('/api/summary', async (req, res) => {
-  try {
-    const query = `
-      SELECT employeeId, employeeName, punchOut
-      FROM \`${process.env.CB_BUCKET_NAME}\`.\`${process.env.CB_SCOPE_NAME || '_default'}\`.\`${process.env.CB_COLLECTION_NAME || 'attendance'}\`
-      WHERE type = "attendance"
-        AND date = $date
-    `;
-    const result  = await runQuery(query, { date: today() });
-    const summary = result.rows.map(r => ({
-      employeeId:   r.employeeId,
-      employeeName: r.employeeName,
-      status:       r.punchOut ? 'Completed' : 'Active',
-    }));
-    res.json({ total: summary.length, summary });
-  } catch (err) {
-    console.error('Summary error:', err);
-    res.status(500).json({ error: 'Server error fetching summary.' });
-  }
+ 
+// ── Fallback to React ────────────────────────────────────────────
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "client/build/index.html"));
 });
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ✅ RENDER FIX + ALB CONFIG 4: Listen on 0.0.0.0 FIRST, connect DB after
-//
-// OLD (broken) approach:
-//   connectCouchbase().then(() => app.listen(...))
-//   → If DB is slow, Render times out waiting for a port → deploy fails
-//
-// NEW (correct) approach:
-//   app.listen() immediately  → Render detects port right away ✅
-//   connectCouchbase() after  → DB connects in background ✅
-//   /api guard middleware     → Returns 503 until DB is ready ✅
-//   /health always 200        → ALB health check never fails ✅
-// ─────────────────────────────────────────────────────────────────────────────
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server listening on 0.0.0.0:${PORT}`);
-  console.log(`   ALB DNS     : ${process.env.ALB_DNS_NAME   || 'not set'}`);
-  console.log(`   Render URL  : ${process.env.RENDER_APP_URL || 'not set'}`);
-  console.log(`   Health check: GET /health`);
+ 
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`server started on port ${PORT}`);
+  console.log(`EC2 backend  : ${EC2_HOST}:${EC2_PORT}`);
+  console.log(`SNS topic    : ${SNS_TOPIC_ARN || "NOT CONFIGURED"}`);
 });
-
-connectCouchbase().catch(err => {
-  console.error('❌ Couchbase connection failed:', err.message);
-  // Server stays alive — /health still returns 200
-  // /api routes return 503 via the guard middleware above
-});
+ 
